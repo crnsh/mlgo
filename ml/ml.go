@@ -459,7 +459,7 @@ func ReluImpl(ctx *Context, a *Tensor, inplace bool) *Tensor {
 
 	result.op = OP_RELU
 	result.Src0 = a
-	result.Src1 = nil 
+	result.Src1 = nil
 
 	if isNode {
 		result.grad = DupTensor(ctx, result)
@@ -476,6 +476,43 @@ func Relu(ctx *Context, a *Tensor) *Tensor {
 
 func ReluInplace(ctx *Context, a *Tensor) *Tensor {
 	return ReluImpl(ctx, a, true)
+}
+
+// ggml_sqrt
+
+func SqrtImpl(ctx *Context, a *Tensor, inplace bool) *Tensor {
+	isNode := false
+
+	if !inplace && a.grad != nil {
+		isNode = true
+	}
+
+	var result *Tensor
+	if inplace {
+		result = ViewTensor(ctx, a)
+	} else {
+		result = DupTensor(ctx, a)
+	}
+
+	result.op = OP_SQRT
+	result.Src0 = a
+	result.Src1 = nil
+
+	if isNode {
+		result.grad = DupTensor(ctx, result)
+	} else {
+		result.grad = nil
+	}
+
+	return result
+}
+
+func Sqrt(ctx *Context, a *Tensor) *Tensor {
+	return SqrtImpl(ctx, a, false)
+}
+
+func SqrtInplace(ctx *Context, a *Tensor) *Tensor {
+	return SqrtImpl(ctx, a, true)
 }
 
 // Repeat
@@ -1517,6 +1554,7 @@ func GraphCompute(ctx *Context, graph *Graph) {
 			case OP_DIV:
 			case OP_SQR:
 			case OP_SQRT:
+				node.TasksCount = 1
 			case OP_SUM:
 			case OP_MEAN:
 			case OP_REPEAT:
@@ -1604,8 +1642,6 @@ func GraphCompute(ctx *Context, graph *Graph) {
 
 }
 
-
-
 // =======================================================================
 
 func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
@@ -1633,9 +1669,7 @@ func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
 		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_sqr")
 		os.Exit(1)
 	case OP_SQRT:
-		////ggml_compute_forward_sqrt(params, tensor->src0, tensor);
-		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_sqrt")
-		os.Exit(1)
+		ComputeForwardSqrtFP32(params, tensor.Src0, tensor)
 	case OP_SUM:
 		////ggml_compute_forward_sum(params, tensor->src0, tensor);
 		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_sum")
@@ -1938,23 +1972,23 @@ func VecReluFP32(n uint32, y, x []float32) {
 
 func ComputeForwardReluFP32(params *ComputeParams, src0, dst *Tensor) {
 	// assert(params->ith == 0);
-    // assert(ggml_are_same_shape(src0, dst));
+	// assert(ggml_are_same_shape(src0, dst));
 	if !AreSameShape(src0, dst) {
 		fmt.Printf("\n[HALT] ComputeForwardReluFP32 : different shapes!")
 		os.Exit(1)
 	}
 
 	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
-		return 
+		return
 	}
 
 	n := src0.Nrows()
 	nc := src0.NE[0]
 
 	// assert(dst->nb[0]  == sizeof(float));
-    // assert(src0->nb[0] == sizeof(float));
+	// assert(src0->nb[0] == sizeof(float));
 
-	for i := uint32(0); i < n; i++{
+	for i := uint32(0); i < n; i++ {
 		// ggml_vec_relu_f32(nc,
 		// 	(float *) ((char *) dst->data  + i*( dst->nb[1])),
 		// 	(float *) ((char *) src0->data + i*(src0->nb[1])));
@@ -2750,6 +2784,61 @@ func ComputeForwardSiluFP32(params *ComputeParams, src0, dst *Tensor) {
 	}
 }
 
+// inline static void ggml_vec_sqrt_f32(const int n, float * y, const float * x) {
+func VecSqrtFP32(n uint32, y, x []float32) {
+	for i := uint32(0); i < n; i++ {
+		y[i] = float32(math.Sqrt(float64(x[i])))
+	}
+}
+
+// ggml_compute_forward_sqrt
+func ComputeForwardSqrtFP32(params *ComputeParams, src0, dst *Tensor) {
+
+	////GGML_ASSERT(ggml_is_contiguous(src0));
+	////GGML_ASSERT(ggml_is_contiguous(dst));
+	////GGML_ASSERT(ggml_are_same_shape(src0, dst));
+
+	if !src0.IsContiguous() {
+		fmt.Printf("[HALT] ComputeForwardSqrtFP32 : [src0] is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if !dst.IsContiguous() {
+		fmt.Printf("[HALT] ComputeForwardSqrtFP32 : [dst] is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
+		return
+	}
+
+	ith := params.ith
+	nth := params.nth
+
+	nc := src0.NE[0]
+	nr := src0.Nrows()
+
+	// rows per thread
+	dr := (nr + nth - 1) / nth
+
+	// row range for this thread
+	ir0 := dr * ith
+	ir1 := uint32(min(int(ir0+dr), int(nr)))
+
+	for i1 := ir0; i1 < ir1; i1++ {
+		////ggml_vec_sqrt_f32(nc,
+		////        (float *) ((char *) dst->data  + i1*( dst->nb[1])),
+		////        (float *) ((char *) src0->data + i1*(src0->nb[1])));
+
+		VecSqrtFP32(nc, dst.Data[i1*dst.NB[1]/4:], src0.Data[i1*src0.NB[1]/4:])
+	}
+
+	if DEBUG {
+		printTensor(src0, "SRC SILI")
+		printTensor(dst, "DST SILI")
+	}
+}
+
 // ---
 
 type TokenScore struct {
@@ -2978,7 +3067,6 @@ func Init(params InitParams) {
 	////const uint64_t t_end = ggml_time_us(); UNUSED(t_end);
 
 }
-
 
 func PrintTensor(tensor *Tensor, name string) {
 	var dt string
