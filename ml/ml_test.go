@@ -61,3 +61,27 @@ func TestDiv(t *testing.T) {
 		}
 	}
 }
+
+func TestErf(t *testing.T) {
+
+	graph := Graph{ThreadsCount: 1}
+
+	slice := []float32{4.23, 8.32, 3.53, 40.1223, 5512.9152}
+
+	x := NewTensor1DWithData(nil, TYPE_F32, 5, slice)
+	out := Erf(nil, x)
+
+	// run the computation
+	BuildForwardExpand(&graph, out)
+	GraphCompute(nil, &graph)
+
+	for i := 0; i < len(out.Data); i++ {
+		x_val := float64(x.Data[i])
+		out_val := float64(out.Data[i])
+		exp_val := math.Erf(x_val)
+
+		if !floatEquals(exp_val, out_val, eps) {
+			t.Errorf("ERF(%v) = %v, Expected = %v", x_val, out_val, exp_val)
+		}
+	}
+}
