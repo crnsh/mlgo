@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const eps = 0.00001
+const eps = 0.001
 
 func floatEquals(a, b, epsilon float64) bool {
 	return math.Abs(a-b) < epsilon

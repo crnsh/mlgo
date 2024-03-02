@@ -1552,6 +1552,7 @@ func GraphCompute(ctx *Context, graph *Graph) {
 			case OP_SUB:
 			case OP_MUL:
 			case OP_DIV:
+				node.TasksCount = 1
 			case OP_SQR:
 			case OP_SQRT:
 				node.TasksCount = 1
@@ -1661,9 +1662,7 @@ func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
 	case OP_MUL:
 		ComputeForwardMulFP32(params, tensor.Src0, tensor.Src1, tensor)
 	case OP_DIV:
-		////ggml_compute_forward_div(params, tensor->src0, tensor->src1, tensor);
-		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_div")
-		os.Exit(1)
+		ComputeForwardDivFP32(params, tensor.Src0, tensor.Src1, tensor)
 	case OP_SQR:
 		////ggml_compute_forward_sqr(params, tensor->src0, tensor);
 		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_sqr")
@@ -2039,6 +2038,52 @@ func ComputeForwardMulFP32(params *ComputeParams, src0, src1, dst *Tensor) {
 		printTensor(src0, "MUL SRC0")
 		printTensor(src1, "MUL SRC1")
 		printTensor(dst, "MUL DST")
+	}
+}
+
+func VecDivFP32(n uint32, z, x, y []float32) {
+	for i := uint32(0); i < n; i++ {
+		z[i] = x[i] / y[i]
+	}
+}
+
+// ggml_compute_forward_DIV
+func ComputeForwardDivFP32(params *ComputeParams, src0, src1, dst *Tensor) {
+
+	////assert(params->ith == 0);
+	////assert(ggml_are_same_shape(src0, src1) && ggml_are_same_shape(src0, dst));
+
+	if !AreSameShape(src0, src1) || !AreSameShape(src0, dst) {
+		fmt.Printf("\n[HALT] ComputeForwardDivFP32 : different shapes!")
+		os.Exit(1)
+	}
+
+	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
+		return
+	}
+
+	n := src0.Nrows()
+	nc := src0.NE[0]
+
+	////assert( dst->nb[0] == sizeof(float));
+	////assert(src0->nb[0] == sizeof(float));
+	////assert(src1->nb[0] == sizeof(float));
+
+	for i := uint32(0); i < n; i++ {
+
+		////ggml_vec_DIV_f32(nc,
+		////(float *) ((char *) dst->data  + i*( dst->nb[1])),
+		////(float *) ((char *) src0->data + i*(src0->nb[1])),
+		////(float *) ((char *) src1->data + i*(src1->nb[1])));
+
+		// FIXME NE vs NB
+		VecDivFP32(nc, dst.Data[i*dst.NE[0]:], src0.Data[i*src0.NE[0]:], src1.Data[i*src1.NE[0]:])
+	}
+
+	if DEBUG {
+		printTensor(src0, "DIV SRC0")
+		printTensor(src1, "DIV SRC1")
+		printTensor(dst, "DIV DST")
 	}
 }
 
