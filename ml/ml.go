@@ -83,6 +83,7 @@ const (
 	OP_ADD
 	OP_SUB
 	OP_MUL
+	OP_POW
 	OP_DIV
 	OP_SQR
 	OP_SQRT
@@ -188,6 +189,55 @@ func ViewTensor(ctx *Context, src *Tensor) *Tensor {
 // ggml.c : ggml_dup_tensor
 func DupTensor(ctx *Context, src *Tensor) *Tensor {
 	return NewTensor(ctx, src.Type, src.Dims, src.NE[0], src.NE[1], src.NE[2], src.NE[3], nil)
+}
+
+// struct ggml_tensor * Pow(
+func Pow(ctx *Context, a, b *Tensor) *Tensor {
+	return PowImpl(ctx, a, b, false)
+}
+
+// struct ggml_tensor * Pow_inplace(
+func PowInplace(ctx *Context, a, b *Tensor) *Tensor {
+	return PowImpl(ctx, a, b, true)
+}
+
+// struct ggml_tensor * Pow_impl(
+func PowImpl(ctx *Context, a, b *Tensor, inplace bool) *Tensor {
+	////ASSERT(ggml_are_same_shape(a, b));
+
+	if !AreSameShape(a, b) {
+		fmt.Printf("\n[STOP] PowImpl - tensors of different shapes!")
+		os.Exit(1)
+	}
+
+	isNode := false
+
+	if inplace && (a.grad != nil || b.grad != nil) {
+		isNode = true
+	}
+
+	if inplace {
+		////ASSERT(is_node == false);
+	}
+
+	var result *Tensor
+	if inplace {
+		result = ViewTensor(ctx, a)
+	} else {
+		result = DupTensor(ctx, a)
+	}
+
+	result.op = OP_POW
+	result.Src0 = a
+	result.Src1 = b
+
+	if isNode {
+		result.grad = DupTensor(ctx, result)
+	} else {
+		result.grad = nil
+	}
+
+	return result
 }
 
 // struct ggml_tensor * Mul(
@@ -1339,6 +1389,8 @@ func ComputeBackward(ctx *Context, tensor *Tensor, inplace bool) {
 					Mul(ctx, src0, tensor.grad),
 					inplace)
 		}
+	case OP_POW:
+		//// ASSERT(false); // TODO: not implemented
 	case OP_DIV:
 		if src0.grad != nil {
 			src0.grad =
@@ -1587,6 +1639,8 @@ func GraphCompute(ctx *Context, graph *Graph) {
 				node.TasksCount = 1 // TODO threads
 			case OP_SUB:
 			case OP_MUL:
+			case OP_POW:
+				node.TasksCount = 1
 			case OP_DIV:
 				node.TasksCount = 1
 			case OP_SQR:
@@ -1699,6 +1753,8 @@ func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
 		os.Exit(1)
 	case OP_MUL:
 		ComputeForwardMulFP32(params, tensor.Src0, tensor.Src1, tensor)
+	case OP_POW:
+		ComputeForwardPowFP32(params, tensor.Src0, tensor.Src1, tensor)
 	case OP_DIV:
 		ComputeForwardDivFP32(params, tensor.Src0, tensor.Src1, tensor)
 	case OP_SQR:
@@ -2078,6 +2134,52 @@ func ComputeForwardMulFP32(params *ComputeParams, src0, src1, dst *Tensor) {
 		printTensor(src0, "MUL SRC0")
 		printTensor(src1, "MUL SRC1")
 		printTensor(dst, "MUL DST")
+	}
+}
+
+func VecPowFP32(n uint32, z, x, y []float32) {
+	for i := uint32(0); i < n; i++ {
+		z[i] = float32(math.Pow(float64(x[i]), float64(y[i])))
+	}
+}
+
+// ggml_compute_forward_Pow
+func ComputeForwardPowFP32(params *ComputeParams, src0, src1, dst *Tensor) {
+
+	////assert(params->ith == 0);
+	////assert(ggml_are_same_shape(src0, src1) && ggml_are_same_shape(src0, dst));
+
+	if !AreSameShape(src0, src1) || !AreSameShape(src0, dst) {
+		fmt.Printf("\n[HALT] ComputeForwardPowFP32 : different shapes!")
+		os.Exit(1)
+	}
+
+	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
+		return
+	}
+
+	n := src0.Nrows()
+	nc := src0.NE[0]
+
+	////assert( dst->nb[0] == sizeof(float));
+	////assert(src0->nb[0] == sizeof(float));
+	////assert(src1->nb[0] == sizeof(float));
+
+	for i := uint32(0); i < n; i++ {
+
+		////ggml_vec_pow_f32(nc,
+		////(float *) ((char *) dst->data  + i*( dst->nb[1])),
+		////(float *) ((char *) src0->data + i*(src0->nb[1])),
+		////(float *) ((char *) src1->data + i*(src1->nb[1])));
+
+		// FIXME NE vs NB
+		VecPowFP32(nc, dst.Data[i*dst.NE[0]:], src0.Data[i*src0.NE[0]:], src1.Data[i*src1.NE[0]:])
+	}
+
+	if DEBUG {
+		printTensor(src0, "POW SRC0")
+		printTensor(src1, "POW SRC1")
+		printTensor(dst, "POW DST")
 	}
 }
 
