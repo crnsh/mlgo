@@ -96,6 +96,7 @@ const (
 	OP_RELU
 	OP_GELU
 	OP_SILU
+	OP_ERF
 	OP_NORM
 	OP_RMS_NORM
 
@@ -1155,6 +1156,39 @@ func SiluInplace(ctx *Context, a *Tensor) *Tensor {
 	return SiluImpl(ctx, a, true)
 }
 
+// ggml_erf
+
+func ErfImpl(ctx *Context, a *Tensor, inplace bool) *Tensor {
+	////bool is_node = false;
+
+	////if (!inplace && (a.grad)) {
+	////is_node = true;
+	////}
+
+	var result *Tensor
+	if inplace {
+		result = ViewTensor(ctx, a)
+	} else {
+		result = DupTensor(ctx, a)
+	}
+
+	result.op = OP_ERF
+	////result.grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;
+	result.grad = nil
+	result.Src0 = a
+	result.Src1 = nil
+
+	return result
+}
+
+func Erf(ctx *Context, a *Tensor) *Tensor {
+	return ErfImpl(ctx, a, false)
+}
+
+func ErfInplace(ctx *Context, a *Tensor) *Tensor {
+	return ErfImpl(ctx, a, true)
+}
+
 // ggml_step
 
 func StepImpl(ctx *Context, a *Tensor, inplace bool) *Tensor {
@@ -1395,6 +1429,8 @@ func ComputeBackward(ctx *Context, tensor *Tensor, inplace bool) {
 		//// ASSERT(false); // TODO: not implemented
 	case OP_SILU:
 		//// ASSERT(false); // TODO: not implemented
+	case OP_ERF:
+		//// ASSERT(false); // TODO: not implemented
 	case OP_NORM:
 		//// ASSERT(false); // TODO: not implemented
 	case OP_RMS_NORM:
@@ -1569,6 +1605,8 @@ func GraphCompute(ctx *Context, graph *Graph) {
 				node.TasksCount = 1 // TODO threads
 			case OP_SILU:
 				node.TasksCount = 1 // TODO threads
+			case OP_ERF:
+				node.TasksCount = 1 // TODO threads
 			case OP_NORM:
 			case OP_RMS_NORM:
 				node.TasksCount = 1 // TODO threads
@@ -1704,6 +1742,8 @@ func ComputeForward(graph *Graph, params *ComputeParams, tensor *Tensor) {
 		os.Exit(1)
 	case OP_SILU:
 		ComputeForwardSiluFP32(params, tensor.Src0, tensor)
+	case OP_ERF:
+		ComputeForwardErfFP32(params, tensor.Src0, tensor)
 	case OP_NORM:
 		////ggml_compute_forward_norm(params, tensor->src0, tensor);
 		fmt.Printf("\n[HALT] Please implement : ggml_compute_forward_norm")
@@ -2821,6 +2861,61 @@ func ComputeForwardSiluFP32(params *ComputeParams, src0, dst *Tensor) {
 		////        (float *) ((char *) src0->data + i1*(src0->nb[1])));
 
 		VecSiluFP32(nc, dst.Data[i1*dst.NB[1]/4:], src0.Data[i1*src0.NB[1]/4:])
+	}
+
+	if DEBUG {
+		printTensor(src0, "SRC SILI")
+		printTensor(dst, "DST SILI")
+	}
+}
+
+// inline static void ggml_vec_silu_f32(const int n, float * y, const float * x) {
+func VecErfFP32(n uint32, y, x []float32) {
+	for i := uint32(0); i < n; i++ {
+		y[i] = float32(math.Erf(float64(x[i]))) // ggml_silu_f32
+	}
+}
+
+// ggml_compute_forward_silu
+func ComputeForwardErfFP32(params *ComputeParams, src0, dst *Tensor) {
+
+	////GGML_ASSERT(ggml_is_contiguous(src0));
+	////GGML_ASSERT(ggml_is_contiguous(dst));
+	////GGML_ASSERT(ggml_are_same_shape(src0, dst));
+
+	if !src0.IsContiguous() {
+		fmt.Printf("[HALT] ComputeForwardSiluFP32 : [src0] is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if !dst.IsContiguous() {
+		fmt.Printf("[HALT] ComputeForwardSiluFP32 : [dst] is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if params.Type == TASK_INIT || params.Type == TASK_FINALIZE {
+		return
+	}
+
+	ith := params.ith
+	nth := params.nth
+
+	nc := src0.NE[0]
+	nr := src0.Nrows()
+
+	// rows per thread
+	dr := (nr + nth - 1) / nth
+
+	// row range for this thread
+	ir0 := dr * ith
+	ir1 := uint32(min(int(ir0+dr), int(nr)))
+
+	for i1 := ir0; i1 < ir1; i1++ {
+		////ggml_vec_silu_f32(nc,
+		////        (float *) ((char *) dst->data  + i1*( dst->nb[1])),
+		////        (float *) ((char *) src0->data + i1*(src0->nb[1])));
+
+		VecErfFP32(nc, dst.Data[i1*dst.NB[1]/4:], src0.Data[i1*src0.NB[1]/4:])
 	}
 
 	if DEBUG {
