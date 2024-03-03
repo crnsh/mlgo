@@ -1038,6 +1038,70 @@ func Rope(ctx *Context, a *Tensor, past, dims, mode uint32) *Tensor {
 	return result
 }
 
+func Reshape1D(ctx *Context, a *Tensor, ne0 uint32) *Tensor {
+	////ASSERT(ggml_is_contiguous(a));
+	////ASSERT(ggml_nelements(a) == ne0*ne1*ne2);
+
+	if !a.IsContiguous() {
+		fmt.Printf("\n[STOP] Reshape3D : tensor is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if a.Nelements() != ne0 {
+		fmt.Printf("\n[STOP] Reshape3D : different elements number!")
+		os.Exit(1)
+	}
+
+	////bool is_node = false;
+
+	////if (a.grad) {
+	////   //// ASSERT(false); // TODO: implement backward
+	////    is_node = true;
+	////}
+
+	result := NewTensor(ctx, a.Type, 3, ne0, 1, 1, 1, a.Data)
+
+	result.op = OP_RESHAPE
+	////result.grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;
+	result.grad = nil
+	result.Src0 = a
+	result.Src1 = nil
+
+	return result
+}
+
+func Reshape2D(ctx *Context, a *Tensor, ne0, ne1 uint32) *Tensor {
+	////ASSERT(ggml_is_contiguous(a));
+	////ASSERT(ggml_nelements(a) == ne0*ne1*ne2);
+
+	if !a.IsContiguous() {
+		fmt.Printf("\n[STOP] Reshape3D : tensor is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if a.Nelements() != ne0*ne1 {
+		fmt.Printf("\n[STOP] Reshape3D : different elements number!")
+		os.Exit(1)
+	}
+
+	////bool is_node = false;
+
+	////if (a.grad) {
+	////   //// ASSERT(false); // TODO: implement backward
+	////    is_node = true;
+	////}
+
+	result := NewTensor(ctx, a.Type, 3, ne0, ne1, 1, 1, a.Data)
+
+	result.op = OP_RESHAPE
+	////result.grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;
+	result.grad = nil
+	result.Src0 = a
+	result.Src1 = nil
+
+	return result
+}
+
 func Reshape3D(ctx *Context, a *Tensor, ne0, ne1, ne2 uint32) *Tensor {
 	////ASSERT(ggml_is_contiguous(a));
 	////ASSERT(ggml_nelements(a) == ne0*ne1*ne2);
@@ -1059,8 +1123,39 @@ func Reshape3D(ctx *Context, a *Tensor, ne0, ne1, ne2 uint32) *Tensor {
 	////    is_node = true;
 	////}
 
-	//ne := [3]uint32{ ne0, ne1, ne2 }
 	result := NewTensor(ctx, a.Type, 3, ne0, ne1, ne2, 1, a.Data)
+
+	result.op = OP_RESHAPE
+	////result.grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;
+	result.grad = nil
+	result.Src0 = a
+	result.Src1 = nil
+
+	return result
+}
+
+func Reshape4D(ctx *Context, a *Tensor, ne0, ne1, ne2, ne4 uint32) *Tensor {
+	////ASSERT(ggml_is_contiguous(a));
+	////ASSERT(ggml_nelements(a) == ne0*ne1*ne2);
+
+	if !a.IsContiguous() {
+		fmt.Printf("\n[STOP] Reshape3D : tensor is NOT contiguous!")
+		os.Exit(1)
+	}
+
+	if a.Nelements() != ne0*ne1*ne2*ne4 {
+		fmt.Printf("\n[STOP] Reshape3D : different elements number!")
+		os.Exit(1)
+	}
+
+	////bool is_node = false;
+
+	////if (a.grad) {
+	////   //// ASSERT(false); // TODO: implement backward
+	////    is_node = true;
+	////}
+
+	result := NewTensor(ctx, a.Type, 3, ne0, ne1, ne2, ne4, a.Data)
 
 	result.op = OP_RESHAPE
 	////result.grad = is_node ? ggml_dup_tensor(ctx, result) : NULL;

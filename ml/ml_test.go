@@ -121,3 +121,22 @@ func TestErf(t *testing.T) {
 		}
 	}
 }
+
+// VIEW OPS (NOPs)
+
+func TestReshape(t *testing.T) {
+
+	x1 := NewTensor2DWithData(nil, TYPE_F32, 2, 3, []float32{1, 2, 3, 4, 5, 6})
+	out := Reshape1D(nil, x1, 6)
+
+	if out.NE[0] != 6 || (out.NE[1]*out.NE[2]*out.NE[3] != 1) {
+		t.Errorf("RESHAPE(x1, 6) = %v, Expected = [6,1,1,1]", out.NE)
+	}
+
+	x2 := NewTensor2DWithData(nil, TYPE_F32, 6, 2, []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12})
+	out = Reshape3D(nil, x2, 3, 2, 2)
+
+	if out.NE[0] != 3 || out.NE[1] != 2 || out.NE[2] != 2 || (out.NE[3] != 1) {
+		t.Errorf("RESHAPE(x2, 3, 2, 2) = %v, Expected = [3,2,2,1]", out.NE)
+	}
+}
