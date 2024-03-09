@@ -1,4 +1,4 @@
-package llama
+package mistral
 
 import (
 	"container/ring"
@@ -796,7 +796,6 @@ func SampleTopPTopK(
 //   - tokens:    new batch of tokens to process
 //   - n_past:    the context size so far
 //   - n_threads: number of threads to use
-//
 func ExpandGraph(
 
 	lctx *Context,
@@ -990,7 +989,6 @@ func ExpandGraph(
 		ml.Repeat(ctx0, model.norm, inpL),
 		inpL)
 
-
 	// lm_head
 	inpL = ml.MulMat(ctx0, model.output, inpL)
 
@@ -1008,7 +1006,6 @@ func ExpandGraph(
 
 	return &graph, ctx0, nil
 }
-
 
 // llama_model_load
 // load the model's weights from a file

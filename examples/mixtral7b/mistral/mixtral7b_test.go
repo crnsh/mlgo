@@ -1,4 +1,4 @@
-package llama
+package mistral
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ func TestLLaMA(t *testing.T) {
 	fmt.Println("Load Model Finish")
 	if err != nil {
 		fmt.Println("load model error: ", err)
-		return 
+		return
 	}
 	embd := ml.Tokenize(ctx.Vocab, prompt, true)
 	err = Eval(ctx, embd, uint32(len(embd)), 0, threadCount)
@@ -31,7 +31,7 @@ func TestLLaMAEvalGraph(t *testing.T) {
 	fmt.Println("Load Model Finish")
 	if err != nil {
 		fmt.Println("load model error: ", err)
-		return 
+		return
 	}
 	embd := ml.Tokenize(ctx.Vocab, prompt, true)
 	graph, mlctx, err := ExpandGraph(ctx, embd, uint32(len(embd)), 0, threadCount)
@@ -40,7 +40,7 @@ func TestLLaMAEvalGraph(t *testing.T) {
 	ml.PrintTensor(graph.Nodes[nodeID], "before")
 
 	envBytes := ml.SaveComputeNodeEnvToBytes(uint32(nodeID), graph.Nodes[nodeID], graph, true)
-	nodeID_, tensorGraphList_ , err := ml.DecodeComputeNodeEnv(envBytes, true, false)
+	nodeID_, tensorGraphList_, err := ml.DecodeComputeNodeEnv(envBytes, true, false)
 	// save bytes from mips
 	{
 		fout, err := os.Create(fmt.Sprintf("../data/node_%v", nodeID))
